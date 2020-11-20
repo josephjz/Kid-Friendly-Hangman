@@ -8,6 +8,7 @@
 //  Rebuilding app for practice for iOS Midterm Novemmber 23
 
 import UIKit
+import AVKit
 
 class ViewController: UIViewController {
     
@@ -22,7 +23,7 @@ class ViewController: UIViewController {
     @IBOutlet weak var playAgainButton: UIButton!
     @IBOutlet weak var flowerImageView: UIImageView!
     
-    var wordsToGuess = ["SWIFT", "DOG", "CAT"]
+    var wordsToGuess = ["FLY", "DOG", "CAT"]
     var currentWordIndex = 0
     var wordToGuess = ""
     var lettersGuessed = ""
@@ -34,6 +35,7 @@ class ViewController: UIViewController {
     var wordsMissedCount = 0
     var guessCount = 0
     
+    var audioPlayer : AVAudioPlayer! // remember you have to force unwrap this optional to declare it without giving it a value
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -75,11 +77,7 @@ class ViewController: UIViewController {
         lettersGuessed += currentLetterGuessed
         formatRevealedWord()
         
-        //update image if needed, and keep track of wrong guesses
-        if !wordToGuess.contains(currentLetterGuessed) {
-            wrongGuessesRemaining -= 1
-            flowerImageView.image = UIImage(named: "flower\(wrongGuessesRemaining)")
-        }
+        drawFlowerAndPlaySound(currentLetterGuessed: currentLetterGuessed)
         
         // update gameStatusLabel
         guessCount += 1
@@ -89,6 +87,7 @@ class ViewController: UIViewController {
         // after each guess, check if the user won the game (all letters have been guessed, so no more _ in beingChecked
         //                         if they lost, they are out of guesses remaining
         if wordBeingRevealedLabel.text?.contains("_") == false {
+            playSound(soundName: "word-guessed")
             gameStatusLabel.text = "YOU WON in \(guessCount) \(plural)"
             wordsGuessedCount += 1
             updateAfterWinOrLose()
@@ -121,6 +120,48 @@ class ViewController: UIViewController {
     }
     
     
+    // playSound() is a helper function
+    func playSound(soundName: String) {
+        if let sound = NSDataAsset(name: soundName) {
+            do {
+                try audioPlayer = AVAudioPlayer(data: sound.data)
+                audioPlayer.play()
+            } catch { print("Error: \(error.localizedDescription) could not initialize plauyer")}
+        } else {
+            print("Error: could not read file")
+        }
+    }
+    
+    
+    func drawFlowerAndPlaySound(currentLetterGuessed: String) {
+        //update image if needed, and keep track of wrong guesses
+        if !wordToGuess.contains(currentLetterGuessed) {
+            wrongGuessesRemaining -= 1
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                UIView.transition(with: self.flowerImageView, duration: 0.5, options: .transitionCrossDissolve) {
+                    self.flowerImageView.image = UIImage(named: "wilt\(self.wrongGuessesRemaining)")
+                } completion: { (_) in
+                    if self.wrongGuessesRemaining != 0 {
+                        self.flowerImageView.image = UIImage(named: "flower\(self.wrongGuessesRemaining)")
+                    } else {
+                        self.playSound(soundName: "word-not-guessed")
+                        UIView.transition(with: self.flowerImageView, duration: 0.5, options: .transitionCrossDissolve, animations: {
+                            self.flowerImageView.image = UIImage(named: "flower\(self.wrongGuessesRemaining)")
+                        }, completion: nil)
+                    }
+                }
+                self.playSound(soundName: "incorrect")
+            }
+        } else {
+            playSound(soundName: "correct")
+        }
+    }
+ 
+    
+    
+    
+    
     @IBAction func guessedLetterFieldChanged(_ sender: UITextField) {
         // disables guess a letter button if there is no letter input
         // action connected to Text Field that user inputs guessed letter into
@@ -139,7 +180,7 @@ class ViewController: UIViewController {
         // else (case that the last letter is not valid aka nil) put an empty string into the text field
         // end result: single character in textField (last letter typed) or if no characters (because user deleted them) put empty string
         
-        guessedLetterField.text = String(guessedLetterField.text?.last ?? " ").trimmingCharacters(in: .whitespaces)
+        guessedLetterField.text = String(guessedLetterField.text?.last ?? " ").trimmingCharacters(in: .whitespaces).uppercased()
         
        
     }
@@ -175,7 +216,7 @@ class ViewController: UIViewController {
         guessLetterButton.isEnabled = false
         wordToGuess = wordsToGuess[currentWordIndex]
         wrongGuessesRemaining = maxWrongGuesses
-        gameStatusLabel.text = "You have made \(guessCount) wrong guesses"
+        gameStatusLabel.text = "You have made 0 guesses"
         guessCount = 0
         lettersGuessed = ""
         flowerImageView.image = UIImage(named: "flower\(maxWrongGuesses)")
